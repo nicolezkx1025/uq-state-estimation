@@ -1,0 +1,9 @@
+mode,filter,rmse_pos_m,coverage_95,nees_pos_mean,nll_mean
+nominal,static,0.232,0.936,2.135,-0.74
+nominal,adaptive,0.233,0.935,2.16,-0.724
+fog,static,0.622,0.347,15.368,5.876
+fog,adaptive,0.315,0.943,1.916,-0.146
+gps_outage,static,0.246,0.953,2.092,-0.64
+gps_outage,adaptive,0.246,0.955,2.08,-0.641
+both,static,0.755,0.252,19.927,8.278
+both,adaptive,1.346,0.861,8.26,3.897
