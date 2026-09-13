@@ -1,104 +1,98 @@
 # uq-state-estimation
 
-**Sensor degradation breaks the *trustworthiness* of state estimation — not just its accuracy.**
+**传感器退化破坏的不只是状态估计的"精度",更是它"不确定性"的可信度。**
 
-A minimal, reproducible experiment on **uncertainty quantification (UQ) under sensor degradation**:
-two Kalman filters see the same data; they differ only in **whether degradation is reflected in the
-reported covariance**. Accuracy barely differs in nominal conditions — but the *covariance* does.
+一个最小化、可复现的实验:在同一个仿真里让两个卡尔曼滤波器看同样的数据,它们**唯一的区别**是
+——退化发生时,是否把退化如实反映到协方差里。正常条件下两者精度几乎一样,但**协方差的可信度不同**。
 
-> 中文摘要:同一个卡尔曼滤波器,在**传感器退化时**如果把退化如实反映到协方差里,不确定性的可信度就守住了;
-> 不反映,则精度或许还行,**但它报告的置信区间已经不可信**——这正是"可信状态估计"的核心问题。
+> 结论一句话:滤波器可以"看起来还在正常工作",但**它报告的置信区间已经不再覆盖真值**。
+> 这种失效在干净数据集上完全看不出来,这正是本项目要量化它的原因。
 
 ---
 
-## 1. Question
+## 一、要回答的问题
 
-When a sensor degrades (fog on the camera, GPS outage), a filter can still produce a
-*plausible-looking* estimate. The failure is silent: the estimate keeps coming, but the reported
-uncertainty no longer covers the truth.
+当传感器退化(相机遇雾、GPS 失锁),滤波器依然会给出**看起来合理**的估计。真正危险的是这种失效是
+**静默的**:估计照常输出,但它宣称的置信度已经不作数了。
 
-**Q: How much does ignoring degradation damage the reliability of the reported uncertainty — separately
-from its effect on accuracy?**
+**问题:若把退化"忽略不计",对报告出来的不确定性可信度有多大伤害?——这与它对精度的影响是两件事。**
 
-## 2. Setup
+## 二、实验设置
 
-2D constant-velocity target, `dt = 0.1 s`, 300 steps per run, 20 random seeds.
+二维恒速目标,`dt = 0.1 s`,每次运行 300 步,20 个随机种子。
 
-| Sensor | Measures | Nominal σ | Degraded |
+| 传感器 | 观测量 | 标称 σ | 退化时 |
 |---|---|---|---|
-| GPS | position | 2.0 m | **unavailable** (outage) |
-| Vision | position | 1.0 m | **3.0 m + 10% outliers (8 m)** (fog) |
-| IMU | velocity | 0.3 m/s | unchanged |
+| GPS | 位置 | 2.0 m | **不可用**(失锁) |
+| 视觉 | 位置 | 1.0 m | **3.0 m + 10% 外点(8 m)**(雾) |
+| IMU | 速度 | 0.3 m/s | 不变 |
 
-Four modes: `nominal`, `fog`, `gps_outage`, `both`.
+四种模式:`nominal`(正常)、`fog`(雾)、`gps_outage`(GPS 失锁)、`both`(双重退化)。
 
-Two filters, **identical except for the covariance口径**:
+两个滤波器,**除"协方差口径"外完全相同**:
 
-- `static` — always uses nominal σ; it does not know it has degraded
-- `adaptive` — inflates vision σ when degraded, and gates measurements by Mahalanobis distance
+- `static` —— 永远使用标称噪声;**它不知道自己已经退化**;
+- `adaptive` —— 退化时放大视觉噪声,并以马氏距离门控剔除外点。
 
-Both share the same motion model, the same data, and the same initialization.
+两者共用同一运动模型、同一份数据、同一套初始化。
 
-## 3. Results
+## 三、结果
 
-Position error and uncertainty reliability (20 seeds, 30-step warmup):
+位置误差与不确定性的可信度(20 个种子,前 30 步为预热期):
 
-| mode | filter | RMSE (m) | coverage@95% | NEES (ideal 2.0) | NLL |
+| 模式 | 滤波器 | RMSE (m) | **覆盖率@95%** | NEES(理想值 2.0) | NLL |
 |---|---|---|---|---|---|
-| nominal | static | 0.232 | **0.936** | 2.13 | −0.74 |
-| nominal | adaptive | 0.233 | **0.935** | 2.16 | −0.72 |
-| fog | static | 0.622 | **0.347** ❌ | 15.37 | 5.88 |
-| fog | adaptive | 0.315 | **0.943** ✅ | 1.92 | −0.15 |
-| gps_outage | static | 0.246 | 0.953 | 2.09 | −0.64 |
-| gps_outage | adaptive | 0.246 | 0.955 | 2.08 | −0.64 |
-| both | static | 0.755 | **0.252** ❌ | 19.93 | 8.28 |
-| both | adaptive | 1.346 | **0.861** ✅ | 8.26 | 3.90 |
+| 正常 | static | 0.232 | **0.936** | 2.13 | −0.74 |
+| 正常 | adaptive | 0.233 | **0.935** | 2.16 | −0.72 |
+| 雾天 | static | 0.622 | **0.347** ❌ | 15.37 | 5.88 |
+| 雾天 | adaptive | 0.315 | **0.943** ✅ | 1.92 | −0.15 |
+| GPS 失锁 | static | 0.246 | 0.953 | 2.09 | −0.64 |
+| GPS 失锁 | adaptive | 0.246 | 0.955 | 2.08 | −0.64 |
+| 双重退化 | static | 0.755 | **0.252** ❌ | 19.93 | 8.28 |
+| 双重退化 | adaptive | 1.346 | **0.861** ✅ | 8.26 | 3.90 |
 
-**Three observations:**
+**三点观察:**
 
-1. **In nominal conditions the two are indistinguishable** (0.232 vs 0.233 m; coverage 0.936 vs 0.935).
-   Reliability only diverges when the world misbehaves — so this failure is invisible in clean benchmarks.
-2. **Under fog, the naive filter is catastrophically overconfident**: it claims 95% coverage and delivers
-   **34.7%**; NEES 15.4 vs the ideal 2.0. Its RMSE is also 2× worse.
-3. **In the hardest mode (`both`) the trade-off appears**: the adaptive filter has *worse* RMSE
-   (1.346 vs 0.755 m) yet much *better* calibration (0.861 vs 0.252) and NEES 8.26 vs 19.93.
-   With only a degraded camera left, you cannot be both accurate and honest — **you can only choose
-   whether your uncertainty tells the truth**. That choice is what makes a system safe to deploy.
+1. **正常条件下两者无法区分**(0.232 与 0.233 m;覆盖率 0.936 与 0.935)。可信度只在"世界不配合"时才分叉
+   ——也就是说,**这类失效在干净基准上看不见**。
+2. **雾天时朴素滤波器灾难性过度自信**:它声称 95% 的置信区间,实际只兑现 **34.7%**;NEES 15.4 而理想值是 2.0。
+   它的 RMSE 同时也差了一倍。
+3. **最难模式下出现了取舍**:`adaptive` 的精度反而更差(1.346 与 0.755 m),但校准诚实得多
+   (0.861 与 0.252),NEES 8.26 对 19.93。只剩一个退化相机时,你无法同时做到又准又诚实
+   ——**你唯一能选的是:让不确定性说不说实话**。而这个选择,决定了系统能不能被安全部署。
 
-Reliability curves: [`results/reliability_nominal.svg`](results/reliability_nominal.svg) ·
+可靠性曲线见:[`results/reliability_nominal.svg`](results/reliability_nominal.svg) ·
 [`results/reliability_both.svg`](results/reliability_both.svg)
 
-## 4. Reproduce
+## 四、复现方式
 
 ```bash
 pip install -r requirements.txt
-python src/run_experiment.py            # ~10 s, writes results/
-python src/run_experiment.py --seeds 5  # quick run
+python src/run_experiment.py            # 约 10 秒,结果写入 results/
+python src/run_experiment.py --seeds 5  # 快速跑一遍
 ```
 
-Output: `results/metrics.csv`, `results/reliability_*.svg`
+输出:`results/metrics.csv`、`results/reliability_*.svg`
 
-## 5. Limitations (explicit)
+## 五、局限(明确写出)
 
-- **Synthetic data only.** No real sensor logs; the degradation model (noise inflation + outliers) is
-  hand-specified, not learned.
-- **The degradation indicator is given (oracle).** `adaptive` receives the true degraded flag.
-  In reality it must be *detected* — that detection problem is the next step, and it is itself an
-  uncertainty problem.
-- **Linear-Gaussian only.** No nonlinear geometry, no correlated noise, no bias states.
-- **Gating is a heuristic.** Thresholds are χ² quantiles chosen by hand; no ablation yet.
-- **No comparison to learned estimators**, and no metrics beyond RMSE / coverage / NEES / NLL.
+- **只有合成数据。** 没有真实传感器日志;退化模型(噪声放大 + 外点)是手工设定的,不是学出来的。
+- **退化指示量是"已知"的(预言机设定)。** `adaptive` 直接拿到真实的退化标志。
+  现实中它必须被**检测**出来——这个检测问题本身就是下一步,而且它自身也是一个不确定性问题。
+- **仅限线性高斯。** 没有非线性几何、没有相关噪声、没有偏差状态。
+- **门控是启发式的。** 阈值取卡方分位数、手工选定,未做消融实验。
+- **没有与学习方法对比**,指标也仅限于 RMSE / 覆盖率 / NEES / NLL。
 
-## 6. Next steps
+## 六、下一步
 
-- [ ] Replace the oracle flag with a **learned degradation detector**, and report detector-calibration jointly
-- [ ] Add **bias states** (fog causes bias, not just variance) — miscalibration that inflates with time
-- [ ] Nonlinear case: range-bearing sensors / EKF vs UKF vs particle filter under the same protocol
-- [ ] Learned estimator (small NN) with **calibrated** predictive distribution, same evaluation harness
-- [ ] Swap the simulator for a public dataset or a simple robot (real degradation, real noise)
+- [ ] 用**学习到的退化检测器**替换预言机标志,并联合报告检测器的校准质量
+- [ ] 加入**偏差状态**(雾带来的是偏移,不只是方差)——这类失配会随时间累积
+- [ ] 非线性情形:在同一套评估协议下比较 EKF / UKF / 粒子滤波
+- [ ] 学习式估计器(小型网络)配上**经过校准**的预测分布,沿用同一评估框架
+- [ ] 把仿真换成公开数据集或一台简单真机(真实退化、真实噪声)
 
-See [`NOTES.md`](NOTES.md) for the reasoning behind these choices.
+设计取舍的推理过程见 [`NOTES.md`](NOTES.md)。
 
-## License
+## 许可
 
 MIT
